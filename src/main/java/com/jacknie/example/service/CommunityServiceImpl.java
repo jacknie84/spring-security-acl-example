@@ -93,6 +93,8 @@ public class CommunityServiceImpl implements CommunityService {
     @PreAuthorize("hasPermission(#messageId, '" + COMMUNITY_MESSAGE + "', 'DELETE')")
     public void deleteCommunityMessage(long messageId) {
         messageRepository.deleteById(messageId);
+        ObjectIdentity object = new ObjectIdentityImpl(COMMUNITY_MESSAGE, messageId);
+        aclService.deleteAcl(object, true);
     }
 
     private MutableAcl getMutableAcl(ObjectIdentity object) {
