@@ -1,5 +1,6 @@
 package com.jacknie.example.service;
 
+import com.jacknie.example.custom.EnhancedMutableAclService;
 import com.jacknie.example.repository.community.Community;
 import com.jacknie.example.repository.community.CommunityMessage;
 import com.jacknie.example.repository.community.CommunityMessageRepository;
@@ -24,7 +25,7 @@ public class CommunityServiceImpl implements CommunityService {
 
     private final CommunityRepository communityRepository;
     private final CommunityMessageRepository messageRepository;
-    private final MutableAclService aclService;
+    private final EnhancedMutableAclService aclService;
 
     @Override
     @PreAuthorize("hasRole('ADMIN')")
@@ -32,7 +33,7 @@ public class CommunityServiceImpl implements CommunityService {
         Community community = new Community();
         community.setSubject(subject);
         Long communityId = communityRepository.save(community).getId();
-        MutableAcl acl = getMutableAcl(new ObjectIdentityImpl(community));
+        MutableAcl acl = aclService.getMutableAcl(community);
         CumulativePermission permission = new CumulativePermission();
         permission.set(BasePermission.ADMINISTRATION);
         permission.set(BasePermission.READ);
@@ -54,15 +55,14 @@ public class CommunityServiceImpl implements CommunityService {
     @Override
     @PreAuthorize("hasPermission(#communityId, '" + COMMUNITY + "', 'ADMINISTRATION')")
     public void inviteCommunity(long communityId, String username) {
-        MutableAcl acl = getMutableAcl(new ObjectIdentityImpl(Community.class.getName(), communityId));
+        MutableAcl acl = aclService.getMutableAcl(new ObjectIdentityImpl(Community.class.getName(), communityId));
         Sid sid = new PrincipalSid(username);
         CumulativePermission permission = new CumulativePermission();
         permission.set(BasePermission.READ);
         permission.set(BasePermission.CREATE);
         acl.insertAce(acl.getEntries().size(), permission, sid, true);
         for (CommunityMessage message : messageRepository.findAllByCommunityId(communityId)) {
-            ObjectIdentity object = new ObjectIdentityImpl(CommunityMessage.class.getName(), message.getId());
-            MutableAcl messageAcl = getMutableAcl(object);
+            MutableAcl messageAcl = aclService.getMutableAcl(CommunityMessage.class, message.getId());
             messageAcl.insertAce(messageAcl.getEntries().size(), BasePermission.READ, sid, true);
             aclService.updateAcl(messageAcl);
         }
@@ -97,19 +97,11 @@ public class CommunityServiceImpl implements CommunityService {
         aclService.deleteAcl(object, true);
     }
 
-    private MutableAcl getMutableAcl(ObjectIdentity object) {
-        try {
-            return (MutableAcl) aclService.readAclById(object);
-        } catch (NotFoundException e) {
-            return aclService.createAcl(object);
-        }
-    }
-
     private long newCommunityMessage(Community community, CommunityMessage message) {
         message.setCommunity(community);
         Long messageId = messageRepository.save(message).getId();
-        MutableAcl communityAcl = getMutableAcl(new ObjectIdentityImpl(Community.class.getName(), community.getId()));
-        MutableAcl messageAcl = getMutableAcl(new ObjectIdentityImpl(CommunityMessage.class.getName(), messageId));
+        MutableAcl communityAcl = aclService.getMutableAcl(Community.class, community.getId());
+        MutableAcl messageAcl = aclService.getMutableAcl(CommunityMessage.class, messageId);
         Sid sid = new PrincipalSid(SecurityContextHolder.getContext().getAuthentication());
         communityAcl.getEntries().stream()
                 .filter(AccessControlEntry::isGranting)

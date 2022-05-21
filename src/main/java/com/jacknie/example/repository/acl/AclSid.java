@@ -1,12 +1,20 @@
 package com.jacknie.example.repository.acl;
 
-import lombok.Data;
+import com.jacknie.example.custom.SidType;
+import lombok.*;
+import org.hibernate.Hibernate;
 
 import javax.persistence.*;
+import java.util.Objects;
 
-@Data
+@Getter
+@Setter
+@ToString
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 @Entity
-@Table(uniqueConstraints = @UniqueConstraint(columnNames = { "sid", "principal" }))
+@Table(uniqueConstraints = @UniqueConstraint(columnNames = { "sid", "type" }))
 public class AclSid {
 
     @Id
@@ -14,9 +22,22 @@ public class AclSid {
     private Long id;
 
     @Column(nullable = false)
-    private Boolean principal;
+    @Enumerated(EnumType.STRING)
+    private SidType type;
 
     @Column(nullable = false)
     private String sid;
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || Hibernate.getClass(this) != Hibernate.getClass(o)) return false;
+        AclSid aclSid = (AclSid) o;
+        return Objects.equals(id, aclSid.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return 0;
+    }
 }

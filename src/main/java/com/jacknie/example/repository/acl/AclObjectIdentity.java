@@ -1,10 +1,17 @@
 package com.jacknie.example.repository.acl;
 
-import lombok.Data;
+import lombok.*;
+import org.hibernate.Hibernate;
 
 import javax.persistence.*;
+import java.util.Objects;
 
-@Data
+@Getter
+@Setter
+@ToString
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 @Entity
 @Table(uniqueConstraints = @UniqueConstraint(columnNames = { "objectIdClass", "objectIdIdentity" }))
 public class AclObjectIdentity {
@@ -14,7 +21,7 @@ public class AclObjectIdentity {
     private Long id;
 
     @Column(nullable = false)
-    private Long objectIdIdentity;
+    private String objectIdIdentity;
 
     @Column(nullable = false)
     private Boolean entriesInheriting;
@@ -31,4 +38,16 @@ public class AclObjectIdentity {
     @JoinColumn(name = "ownerSid", referencedColumnName = "id")
     private AclSid ownerSid;
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || Hibernate.getClass(this) != Hibernate.getClass(o)) return false;
+        AclObjectIdentity that = (AclObjectIdentity) o;
+        return Objects.equals(id, that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return 0;
+    }
 }

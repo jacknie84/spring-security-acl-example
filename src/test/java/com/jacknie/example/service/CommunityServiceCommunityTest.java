@@ -28,7 +28,7 @@ public class CommunityServiceCommunityTest extends CommunityServiceTest {
         final long communityId = communityService.createCommunity("Test Subject1", username);
         assertTrue(aclSidRepository.existsBySid(username));
         assertTrue(aclClassRepository.existsByClassName(Community.class.getName()));
-        assertTrue(aclObjectIdentityRepository.existsByObjectIdIdentity(communityId));
+        assertTrue(aclObjectIdentityRepository.existsByObjectIdIdentity(Long.toString(communityId)));
         ObjectIdentity object = new ObjectIdentityImpl(Community.class.getName(), communityId);
         Acl acl = mutableAclService.readAclById(object);
         assertTrue(acl.isGranted(allPermissions, List.of(new PrincipalSid(username)), false));

@@ -2,23 +2,31 @@ plugins {
     id 'idea'
     id 'eclipse'
     id 'java'
-    id 'org.springframework.boot' version '2.4.4'
+    id 'org.springframework.boot' version '2.6.5'
     id 'io.spring.dependency-management' version '1.0.11.RELEASE'
 }
 
+sourceCompatibility = JavaVersion.VERSION_17
+targetCompatibility = JavaVersion.VERSION_17
+
 repositories {
-    jcenter()
+    mavenCentral()
 }
 
 dependencies {
+    annotationProcessor 'org.projectlombok:lombok'
+    annotationProcessor 'jakarta.persistence:jakarta.persistence-api'
+    annotationProcessor 'com.querydsl:querydsl-apt::jpa'
+
     implementation "org.springframework.boot:spring-boot-starter-web"
     implementation "org.springframework.boot:spring-boot-starter-data-jpa"
     implementation "org.springframework.boot:spring-boot-starter-security"
     implementation "org.springframework.boot:spring-boot-starter-cache"
     implementation "org.springframework.security:spring-security-acl"
+    implementation 'com.querydsl:querydsl-jpa'
 
     runtimeOnly "com.h2database:h2"
-    annotationProcessor "org.projectlombok:lombok"
+
     compileOnly "org.projectlombok:lombok"
 
     testImplementation "org.springframework.boot:spring-boot-starter-test"
