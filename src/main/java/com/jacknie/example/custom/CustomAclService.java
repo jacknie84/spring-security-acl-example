@@ -45,7 +45,13 @@ public abstract class CustomAclService implements AclService {
         return result;
     }
 
+    /**
+     * @return ACL 데이터 처리 명령 목록
+     */
     protected abstract AclOperations getAclOperations();
 
+    /**
+     * @return ACL 데이터 검색
+     */
     protected abstract LookupStrategy getLookupStrategy();
 }

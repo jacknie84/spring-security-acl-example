@@ -2,6 +2,7 @@ package com.jacknie.example.config;
 
 import com.jacknie.example.custom.CustomLookupStrategy;
 import com.jacknie.example.custom.CustomMutableAclService;
+import com.jacknie.example.custom.EnhancedMutableAclService;
 import com.jacknie.example.custom.OperationsImpl;
 import com.jacknie.example.repository.acl.AclClassRepository;
 import com.jacknie.example.repository.acl.AclEntryRepository;
@@ -47,7 +48,7 @@ public class WebSecurityConfiguration extends WebSecurityConfigurerAdapter {
     }
 
     @Bean
-    public MutableAclService aclService() {
+    public EnhancedMutableAclService aclService() {
         AuditLogger auditLogger = new ConsoleAuditLogger();
         Cache cache = new ConcurrentMapCache("aclCache");
         PermissionGrantingStrategy permissionGrantingStrategy = new CumulativePermissionGrantingStrategy(auditLogger);

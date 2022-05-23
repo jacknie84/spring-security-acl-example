@@ -8,10 +8,8 @@ import org.springframework.data.util.Pair;
 import org.springframework.lang.Nullable;
 import org.springframework.security.acls.domain.AccessControlEntryImpl;
 import org.springframework.security.acls.domain.ObjectIdentityImpl;
-import org.springframework.security.acls.model.AccessControlEntry;
-import org.springframework.security.acls.model.NotFoundException;
-import org.springframework.security.acls.model.ObjectIdentity;
-import org.springframework.security.acls.model.Sid;
+import org.springframework.security.acls.domain.PrincipalSid;
+import org.springframework.security.acls.model.*;
 import org.springframework.util.Assert;
 
 import java.io.Serializable;
@@ -38,111 +36,40 @@ public class OperationsImpl implements AclOperations, LookupOperations {
     }
 
     @Override
-    public List<Long> findSidIds(SidType sidType, String sidName) {
-        Assert.notNull(sidType, "sidType cannot be null");
-        Assert.hasText(sidName, "sidName cannot be blank");
-        return sidRepository.findIdsByTypeAndSid(sidType, sidName);
+    public void createObjectIdentity(ObjectIdentity oid, PrincipalSid owner) {
+        Long sidId = createOrRetrieveSidPrimaryKey(owner);
+        Long classId = createOrRetrieveClassPrimaryKey(oid.getType(), oid.getIdentifier().getClass());
+        saveObjectIdentity(classId, oid, sidId);
     }
 
     @Override
-    public Long saveSid(SidType sidType, String sidName) {
-        Assert.notNull(sidType, "sidType cannot be null");
-        Assert.hasText(sidName, "sidName cannot be blank");
-        AclSid entity = AclSid.builder().type(sidType).sid(sidName).build();
-        return sidRepository.save(entity).getId();
+    public void deleteAcl(ObjectIdentity oid, boolean deleteChildren) {
+        Assert.notNull(oid, "Object Identity required");
+        Assert.notNull(oid.getIdentifier(), "Object Identity doesn't provide an identifier");
+
+        if (deleteChildren) {
+            List<ObjectIdentity> children = findChildren(oid);
+            if (children != null) {
+                for (ObjectIdentity child : children) {
+                    deleteAcl(child, true);
+                }
+            }
+        }
+
+        // Delete this ACL's ACEs in the acl_entry table
+        deleteEntries(oid);
+        // Delete this ACL's acl_object_identity row
+        deleteObjectIdentity(oid);
     }
 
     @Override
-    public List<Long> findClassIds(String type) {
-        Assert.hasText(type, "type cannot be blank");
-        return classRepository.findIdsByType(type);
-    }
+    public void updateAcl(MutableAcl acl) {
+        Assert.notNull(acl.getId(), "Object Identity doesn't provide an identifier");
 
-    @Override
-    public boolean isAclClassIdSupported() {
-        return true;
-    }
-
-    @Override
-    public Long saveClass(String type) {
-        return saveClass(type, null);
-    }
-
-    @Override
-    public Long saveClass(String type, @Nullable String idClassName) {
-        AclClass entity = AclClass.builder().className(type).classIdType(idClassName).build();
-        return classRepository.save(entity).getId();
-    }
-
-    @Override
-    public void saveObjectIdentity(long classId, ObjectIdentity oid, long sidId, boolean entriesInheriting) {
-        Assert.notNull(oid, "oid cannot be null");
-        AclSid aclSid = sidRepository.findById(sidId)
-            .orElseThrow(() -> new IllegalArgumentException("cannot found AclSid entity by id: " + sidId));
-        AclClass aclClass = classRepository.findById(classId)
-            .orElseThrow(() -> new IllegalArgumentException("cannot found AclClass entity by id: " + classId));
-        AclObjectIdentity entity = AclObjectIdentity.builder()
-            .objectIdIdentity(oid.getIdentifier().toString())
-            .entriesInheriting(entriesInheriting)
-            .ownerSid(aclSid)
-            .objectIdClass(aclClass)
-            .build();
-        oidRepository.save(entity);
-    }
-
-    @Override
-    public void deleteEntries(ObjectIdentity oid) {
-        AclObjectIdentity aclOid = getAclObjectIdentity(oid);
-        List<AclEntry> entities = entryRepository.findAllByObjectIdentity(aclOid);
-        entryRepository.deleteAll(entities);
-    }
-
-    @Override
-    public void deleteObjectIdentity(ObjectIdentity oid) {
-        AclObjectIdentity aclOid = getAclObjectIdentity(oid);
-        oidRepository.delete(aclOid);
-    }
-
-    @Override
-    public Set<Long> saveSids(List<Sid> sids) {
-        Set<Pair<String, SidType>> sidAndTypePairs = sids.stream()
-            .map(SidHelper::new)
-            .map(sid -> Pair.of(sid.getSid(), sid.getType()))
-            .collect(Collectors.toSet());
-        Map<Pair<String, SidType>, AclSid> sidMap = sidRepository.findMapBySidAndTypePairIn(sidAndTypePairs);
-        return sidAndTypePairs.stream().map(pair -> getAclSidId(sidMap, pair)).collect(Collectors.toSet());
-    }
-
-    @Override
-    public void saveEntries(long oidId, List<AccessControlEntry> entries, Set<Long> sidIds) {
-        AclObjectIdentity aclOid = oidRepository.findById(oidId).orElseThrow();
-        Map<Long, AclEntry> entityMap = entryRepository.findMapByObjectIdentity(aclOid);
-        Map<Pair<String, SidType>, AclSid> sidMap = sidRepository.findMapByIdIn(sidIds);
-        Set<Long> ids = IntStream.range(0, entries.size())
-            .mapToObj(i -> Pair.of(entries.get(i), i))
-            .map(pair -> saveEntry(pair.getFirst(), pair.getSecond(), entityMap, aclOid, sidMap))
-            .collect(Collectors.toSet());
-        entityMap.entrySet().stream()
-            .filter(entry -> !ids.contains(entry.getKey()))
-            .map(Map.Entry::getValue)
-            .forEach(entryRepository::delete);
-    }
-
-    @Override
-    public Optional<Long> findObjectIdentityIdByObjectIdentity(ObjectIdentity oid) {
-        Assert.notNull(oid, "oid cannot be null");
-        return oidRepository.findIdByObjectIdentity(oid);
-    }
-
-    @Override
-    public void updateObjectIdentity(Serializable id, @Nullable Long parentId, long ownerSid, boolean entriesInheriting) throws NotFoundException {
-        Assert.notNull(id, "id cannot be null");
-        AclObjectIdentity entity = oidRepository.findById((Long) id)
-            .orElseThrow(() -> new NotFoundException("Unable to locate ACL to update"));
-        Optional.ofNullable(parentId).flatMap(oidRepository::findById).ifPresent(entity::setParentObject);
-        sidRepository.findById(ownerSid).ifPresent(entity::setOwnerSid);
-        entity.setEntriesInheriting(entriesInheriting);
-        oidRepository.save(entity);
+        // Update this ACL's ACEs in the acl_entry table
+        updateEntries(acl);
+        // Change the mutable columns in acl_object_identity
+        updateObjectIdentity(acl);
     }
 
     @Override
@@ -166,6 +93,148 @@ public class OperationsImpl implements AclOperations, LookupOperations {
         Set<Long> oidIds = baseParts.stream().map(AclSourceBasePart::getObjectIdentityId).collect(Collectors.toSet());
         Map<Long, List<AclSourceAcePart>> acePartsMap = entryRepository.findAclSourceAcePartsMap(oidIds);
         return baseParts.stream().flatMap(basePart -> toAclSourceStream(basePart, acePartsMap)).toList();
+    }
+
+    private void saveObjectIdentity(@Nullable Long classId, ObjectIdentity oid, @Nullable Long sidId) {
+        Assert.notNull(oid, "oid cannot be null");
+        AclSid aclSid = Optional.ofNullable(sidId).flatMap(sidRepository::findById)
+            .orElseThrow(() -> new IllegalArgumentException("cannot found AclSid entity by id: " + sidId));
+        AclClass aclClass = Optional.ofNullable(classId).flatMap(classRepository::findById)
+            .orElseThrow(() -> new IllegalArgumentException("cannot found AclClass entity by id: " + classId));
+        AclObjectIdentity entity = AclObjectIdentity.builder()
+            .objectIdIdentity(oid.getIdentifier().toString())
+            .entriesInheriting(true)
+            .ownerSid(aclSid)
+            .objectIdClass(aclClass)
+            .build();
+        oidRepository.save(entity);
+    }
+
+    private Long saveSid(SidType sidType, String sidName) {
+        Assert.notNull(sidType, "sidType cannot be null");
+        Assert.hasText(sidName, "sidName cannot be blank");
+        AclSid entity = AclSid.builder().type(sidType).sid(sidName).build();
+        return sidRepository.save(entity).getId();
+    }
+
+    /**
+     * Retrieves the primary key from acl_sid, creating a new row if needed and the
+     * allowCreate property is true.
+     * @param sid to find or create
+     * @return the primary key or null if not found
+     * @throws IllegalArgumentException if the <tt>Sid</tt> is not a recognized
+     * implementation.
+     */
+    private Long createOrRetrieveSidPrimaryKey(Sid sid) throws IllegalArgumentException {
+        SidHelper sidHelper = new SidHelper(sid);
+        return createOrRetrieveSidPrimaryKey(sidHelper.getSid(), sidHelper.getType());
+    }
+
+    /**
+     * Retrieves the primary key from acl_sid, creating a new row if needed and the
+     * allowCreate property is true.
+     * @param sidName name of Sid to find or to create
+     * @param sidType whether it's a user or granted authority like role
+     * @return the primary key or null if not found
+     */
+    private Long createOrRetrieveSidPrimaryKey(String sidName, SidType sidType) {
+        List<Long> sidIds = sidRepository.findIdsByTypeAndSid(sidType, sidName);
+        if (!sidIds.isEmpty()) {
+            return sidIds.get(0);
+        }
+
+        return saveSid(sidType, sidName);
+    }
+
+    /**
+     * Retrieves the primary key from {@code acl_class}, creating a new row if needed and
+     * the {@code allowCreate} property is {@code true}.
+     * @param type to find or create an entry for (often the fully-qualified class name)
+     * @param idType target id class
+     * @return the primary key or null if not found
+     */
+    private Long createOrRetrieveClassPrimaryKey(String type, Class<?> idType) {
+        List<Long> classIds = classRepository.findIdsByType(type);
+
+        if (!classIds.isEmpty()) {
+            return classIds.get(0);
+        }
+
+        return saveClass(type, idType.getCanonicalName());
+    }
+
+    private Long saveClass(String type, @Nullable String idClassName) {
+        AclClass entity = AclClass.builder().className(type).classIdType(idClassName).build();
+        return classRepository.save(entity).getId();
+    }
+
+    private void deleteEntries(ObjectIdentity oid) {
+        AclObjectIdentity aclOid = getAclObjectIdentity(oid);
+        List<AclEntry> entities = entryRepository.findAllByObjectIdentity(aclOid);
+        entryRepository.deleteAll(entities);
+    }
+
+    private void deleteObjectIdentity(ObjectIdentity oid) {
+        AclObjectIdentity aclOid = getAclObjectIdentity(oid);
+        oidRepository.delete(aclOid);
+    }
+
+    private void updateEntries(MutableAcl acl) {
+        long oidId = (Long) acl.getId();
+        List<AccessControlEntry> entries = acl.getEntries();
+        List<Sid> sids = entries.stream().map(AccessControlEntry::getSid).toList();
+        Set<Long> sidIds = saveSids(sids);
+        saveEntries(oidId, entries, sidIds);
+    }
+
+    private Set<Long> saveSids(List<Sid> sids) {
+        Set<Pair<String, SidType>> sidAndTypePairs = sids.stream()
+            .map(SidHelper::new)
+            .map(sid -> Pair.of(sid.getSid(), sid.getType()))
+            .collect(Collectors.toSet());
+        Map<Pair<String, SidType>, AclSid> sidMap = sidRepository.findMapBySidAndTypePairIn(sidAndTypePairs);
+        return sidAndTypePairs.stream().map(pair -> getAclSidId(sidMap, pair)).collect(Collectors.toSet());
+    }
+
+    private void saveEntries(long oidId, List<AccessControlEntry> entries, Set<Long> sidIds) {
+        AclObjectIdentity aclOid = oidRepository.findById(oidId).orElseThrow();
+        Map<Long, AclEntry> entityMap = entryRepository.findMapByObjectIdentity(aclOid);
+        Map<Pair<String, SidType>, AclSid> sidMap = sidRepository.findMapByIdIn(sidIds);
+        Set<Long> ids = IntStream.range(0, entries.size())
+            .mapToObj(i -> Pair.of(entries.get(i), i))
+            .map(pair -> saveEntry(pair.getFirst(), pair.getSecond(), entityMap, aclOid, sidMap))
+            .collect(Collectors.toSet());
+        entityMap.entrySet().stream()
+            .filter(entry -> !ids.contains(entry.getKey()))
+            .map(Map.Entry::getValue)
+            .forEach(entryRepository::delete);
+    }
+
+    /**
+     * Updates an existing acl_object_identity row, with new information presented in the
+     * passed MutableAcl object. Also will create an acl_sid entry if needed for the Sid
+     * that owns the MutableAcl.
+     * @param acl to modify (a row must already exist in acl_object_identity)
+     * @throws NotFoundException if the ACL could not be found to update.
+     */
+    private void updateObjectIdentity(MutableAcl acl) {
+        Assert.notNull(acl.getOwner(), "Owner is required in this implementation");
+        Long parentId = Optional.ofNullable(acl.getParentAcl())
+            .map(Acl::getObjectIdentity)
+            .flatMap(oidRepository::findIdByObjectIdentity)
+            .orElse(null);
+        Long ownerSid = createOrRetrieveSidPrimaryKey(acl.getOwner());
+        updateObjectIdentity(acl.getId(), parentId, ownerSid, acl.isEntriesInheriting());
+    }
+
+    private void updateObjectIdentity(Serializable id, @Nullable Long parentId, long ownerSid, boolean entriesInheriting) throws NotFoundException {
+        Assert.notNull(id, "id cannot be null");
+        AclObjectIdentity entity = oidRepository.findById((Long) id)
+            .orElseThrow(() -> new NotFoundException("Unable to locate ACL to update"));
+        Optional.ofNullable(parentId).flatMap(oidRepository::findById).ifPresent(entity::setParentObject);
+        sidRepository.findById(ownerSid).ifPresent(entity::setOwnerSid);
+        entity.setEntriesInheriting(entriesInheriting);
+        oidRepository.save(entity);
     }
 
     private Stream<AclSource> toAclSourceStream(AclSourceBasePart basePart, Map<Long, List<AclSourceAcePart>> acePartsMap) {
