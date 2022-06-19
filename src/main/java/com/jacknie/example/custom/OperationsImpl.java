@@ -203,7 +203,7 @@ public class OperationsImpl implements AclOperations, LookupOperations {
 
     /**
      * Updates an existing acl_object_identity row, with new information presented in the
-     * passed MutableAcl object. Also will create an acl_sid entry if needed for the Sid
+     * past MutableAcl object. Also, will create an acl_sid entry if needed for the Sid
      * that owns the MutableAcl.
      * @param acl to modify (a row must already exist in acl_object_identity)
      * @throws NotFoundException if the ACL could not be found to update.
