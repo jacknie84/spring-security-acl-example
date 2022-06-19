@@ -8,8 +8,8 @@ import org.springframework.data.util.Pair;
 import org.springframework.util.CollectionUtils;
 
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static com.jacknie.example.repository.acl.QAclSid.aclSid;
@@ -22,13 +22,13 @@ public class AclSidCustomRepositoryImpl extends QuerydslRepositorySupport implem
     }
 
     @Override
-    public List<Long> findIdsByTypeAndSid(SidType type, String sid) {
-        return from(aclSid).select(aclSid.id)
+    public Optional<Long> findIdByTypeAndSid(SidType type, String sid) {
+        return Optional.ofNullable(from(aclSid).select(aclSid.id)
             .where(
                 aclSid.type.eq(type),
                 aclSid.sid.eq(sid)
             )
-            .fetch();
+            .fetchOne());
     }
 
     @Override

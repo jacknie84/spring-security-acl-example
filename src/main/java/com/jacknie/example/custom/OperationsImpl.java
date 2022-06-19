@@ -138,12 +138,8 @@ public class OperationsImpl implements AclOperations, LookupOperations {
      * @return the primary key or null if not found
      */
     private Long createOrRetrieveSidPrimaryKey(String sidName, SidType sidType) {
-        List<Long> sidIds = sidRepository.findIdsByTypeAndSid(sidType, sidName);
-        if (!sidIds.isEmpty()) {
-            return sidIds.get(0);
-        }
-
-        return saveSid(sidType, sidName);
+        return sidRepository.findIdByTypeAndSid(sidType, sidName)
+            .orElseGet(() -> saveSid(sidType, sidName));
     }
 
     /**
@@ -154,13 +150,8 @@ public class OperationsImpl implements AclOperations, LookupOperations {
      * @return the primary key or null if not found
      */
     private Long createOrRetrieveClassPrimaryKey(String type, Class<?> idType) {
-        List<Long> classIds = classRepository.findIdsByType(type);
-
-        if (!classIds.isEmpty()) {
-            return classIds.get(0);
-        }
-
-        return saveClass(type, idType.getCanonicalName());
+        return classRepository.findIdByType(type)
+            .orElseGet(() -> saveClass(type, idType.getCanonicalName()));
     }
 
     private Long saveClass(String type, @Nullable String idClassName) {

@@ -1,13 +1,13 @@
 package com.jacknie.example.repository.acl;
 
-import java.util.List;
+import java.util.Optional;
 
 public interface AclClassCustomRepository {
 
     /**
-     * 클래스 아이디 목록 조회
+     * 클래스 아이디 조회
      * @param type 클래스 타입
-     * @return 클래스 아이디 목록
+     * @return 클래스 아이디
      */
-    List<Long> findIdsByType(String type);
+    Optional<Long> findIdByType(String type);
 }

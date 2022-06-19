@@ -3,19 +3,19 @@ package com.jacknie.example.repository.acl;
 import com.jacknie.example.custom.SidType;
 import org.springframework.data.util.Pair;
 
-import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 public interface AclSidCustomRepository {
 
     /**
-     * 아이디 목록 조회
+     * 아이디 조회
      * @param type 타입
      * @param sid 이름
-     * @return 아이디 목록
+     * @return 아이디
      */
-    List<Long> findIdsByTypeAndSid(SidType type, String sid);
+    Optional<Long> findIdByTypeAndSid(SidType type, String sid);
 
     /**
      * 보안 식별 정보 맵 조회
