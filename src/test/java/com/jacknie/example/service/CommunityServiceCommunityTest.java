@@ -23,7 +23,7 @@ public class CommunityServiceCommunityTest extends CommunityServiceTest {
 
     @Test
     @WithMockUser(username = "admin", roles = "ADMIN")
-    public void createCommunityTest() {
+    public void createCommunityTest() throws Exception {
         final String username = "testCommChief";
         final long communityId = communityService.createCommunity("Test Subject1", username);
         assertTrue(aclSidRepository.existsBySid(username));

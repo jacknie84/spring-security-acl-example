@@ -1,5 +1,6 @@
 package com.jacknie.example.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jacknie.example.repository.acl.AclClassRepository;
 import com.jacknie.example.repository.acl.AclEntryRepository;
 import com.jacknie.example.repository.acl.AclObjectIdentityRepository;
@@ -46,6 +47,9 @@ public class CommunityServiceTest {
 
     @Autowired
     protected AclSidRepository aclSidRepository;
+
+    @Autowired
+    protected ObjectMapper objectMapper;
 
     protected long createCommunityByAdmin(String subject, String username) {
         return adminSecurityContext(() -> communityService.createCommunity(subject, username));

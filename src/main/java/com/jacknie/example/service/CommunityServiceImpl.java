@@ -8,12 +8,13 @@ import com.jacknie.example.repository.community.CommunityRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.acls.domain.*;
-import org.springframework.security.acls.model.*;
+import org.springframework.security.acls.model.MutableAcl;
+import org.springframework.security.acls.model.ObjectIdentity;
+import org.springframework.security.acls.model.Sid;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import javax.transaction.Transactional;
-import java.util.Map;
 
 @Service
 @Transactional
@@ -40,6 +41,7 @@ public class CommunityServiceImpl implements CommunityService {
         permission.set(BasePermission.WRITE);
         permission.set(BasePermission.CREATE);
         permission.set(BasePermission.DELETE);
+        acl.setParent(aclService.getMutableAcl("Root", "root"));
         acl.insertAce(acl.getEntries().size(), permission, new PrincipalSid(owner), true);
         acl.insertAce(acl.getEntries().size(), BasePermission.READ, new GrantedAuthoritySid("ROLE_USER"), true);
         aclService.updateAcl(acl);
@@ -55,17 +57,9 @@ public class CommunityServiceImpl implements CommunityService {
     @Override
     @PreAuthorize("hasPermission(#communityId, '" + COMMUNITY + "', 'ADMINISTRATION')")
     public void inviteCommunity(long communityId, String username) {
-        MutableAcl acl = aclService.getMutableAcl(new ObjectIdentityImpl(Community.class.getName(), communityId));
+        MutableAcl acl = aclService.getMutableAcl(Community.class.getName(), communityId);
         Sid sid = new PrincipalSid(username);
-        CumulativePermission permission = new CumulativePermission();
-        permission.set(BasePermission.READ);
-        permission.set(BasePermission.CREATE);
-        acl.insertAce(acl.getEntries().size(), permission, sid, true);
-        for (CommunityMessage message : messageRepository.findAllByCommunityId(communityId)) {
-            MutableAcl messageAcl = aclService.getMutableAcl(CommunityMessage.class, message.getId());
-            messageAcl.insertAce(messageAcl.getEntries().size(), BasePermission.READ, sid, true);
-            aclService.updateAcl(messageAcl);
-        }
+        acl.insertAce(acl.getEntries().size(), BasePermission.CREATE, sid, true);
         aclService.updateAcl(acl);
     }
 
@@ -103,27 +97,14 @@ public class CommunityServiceImpl implements CommunityService {
         MutableAcl communityAcl = aclService.getMutableAcl(Community.class, community.getId());
         MutableAcl messageAcl = aclService.getMutableAcl(CommunityMessage.class, messageId);
         Sid sid = new PrincipalSid(SecurityContextHolder.getContext().getAuthentication());
-        communityAcl.getEntries().stream()
-                .filter(AccessControlEntry::isGranting)
-                .map(AccessControlEntry::getSid)
-                .filter(aceSid -> aceSid instanceof PrincipalSid)
-                .distinct()
-                .map(aceSid -> resolveSidPermissionEntry(aceSid, sid))
-                .forEach(entry -> messageAcl.insertAce(messageAcl.getEntries().size(), entry.getValue(), entry.getKey(), true));
+        CumulativePermission permission = new CumulativePermission();
+        permission.set(BasePermission.WRITE);
+        permission.set(BasePermission.DELETE);
+        messageAcl.setOwner(sid);
+        messageAcl.setParent(communityAcl);
+        messageAcl.insertAce(messageAcl.getEntries().size(), permission, sid, true);
         aclService.updateAcl(messageAcl);
         return messageId;
-    }
-
-    private Map.Entry<Sid, Permission> resolveSidPermissionEntry(Sid aceSid, Sid ownerSid) {
-        Permission permission = BasePermission.READ;
-        if (aceSid.equals(ownerSid)) {
-            CumulativePermission cumulativePermission = new CumulativePermission();
-            cumulativePermission.set(BasePermission.READ);
-            cumulativePermission.set(BasePermission.WRITE);
-            cumulativePermission.set(BasePermission.DELETE);
-            permission = cumulativePermission;
-        }
-        return Map.entry(aceSid, permission);
     }
 
     private void updateCommunityMessage(CommunityMessage origin, CommunityMessage target) {

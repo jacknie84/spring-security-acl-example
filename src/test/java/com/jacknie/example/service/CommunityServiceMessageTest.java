@@ -49,16 +49,6 @@ public class CommunityServiceMessageTest extends CommunityServiceTest {
     }
 
     @Test
-    @WithMockUser(username = "otherUser")
-    public void getMessageAccessDeniedTest() {
-        long messageId = newCommunityMessage(USER1, communityId, "test message", "message content");
-        assertThrows(
-                AccessDeniedException.class,
-                () -> communityService.getCommunityMessage(messageId)
-        );
-    }
-
-    @Test
     @WithMockUser(username = USER2)
     public void getMessageTest() {
         long messageId = newCommunityMessage(USER1, communityId, "test message", "message content");
